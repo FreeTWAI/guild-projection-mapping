@@ -5,11 +5,14 @@
   const embedded = window.parent !== window;
   let connection = null;
   let lastHeight = 0;
+  let mainElement = null;
   function send(message) {
     if (connection) window.parent.postMessage({protocol, channel: connection.channel, guildKey: workspace.guild_key, ...message}, connection.origin);
   }
   function resize() {
-    const height = Math.max(240, Math.min(1600, Math.ceil(document.querySelector('main').getBoundingClientRect().height + 32)));
+    if (!mainElement) mainElement = document.querySelector('main');
+    if (!mainElement) return;
+    const height = Math.max(240, Math.min(1600, Math.ceil(mainElement.getBoundingClientRect().height + 32)));
     if (height !== lastHeight) {lastHeight = height; send({type: 'resize', height});}
   }
   if (embedded) {

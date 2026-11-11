@@ -18,7 +18,8 @@ export function validateWorkspace(value) {
   }
   return value;
 }
-export const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+const htmlEntities = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+export const escapeHtml = value => String(value).replace(/[&<>"']/g, char => htmlEntities[char]);
 const href = (workspace, action) => `https://freetwai.com/#guilds/${workspace.guild_key}/${action}`;
 export function renderWorkspace(workspace) {
   validateWorkspace(workspace);
@@ -41,12 +42,20 @@ export async function build(root = process.cwd(), sourceSha) {
   const output = resolve(root, 'dist');
   await mkdir(output, {recursive: true});
   const serialized = JSON.stringify(workspace).replaceAll('<', '\\u003c').replaceAll('\u2028', '\\u2028').replaceAll('\u2029', '\\u2029');
-  await writeFile(resolve(output, 'index.html'), renderWorkspace(workspace));
-  await writeFile(resolve(output, 'site.js'), `const workspace = ${serialized};\nconst sourceSha = ${JSON.stringify(sha)};\n` + await readFile(resolve(root, 'src/site.js'), 'utf8'));
-  await copyFile(resolve(root, 'src/style.css'), resolve(output, 'style.css'));
-  await copyFile(resolve(root, 'brand.png'), resolve(output, 'brand.png'));
-  await writeFile(resolve(output, '.nojekyll'), '');
-  await writeFile(resolve(output, 'release.json'), JSON.stringify({schema_version: 'freedom.guild-release/v1', guild_key: workspace.guild_key, repository: workspace.repository, source_sha: sha, bridge: 'freedom.guild-launchpad/v1'}) + '\n');
+
+  const siteJsContentPromise = readFile(resolve(root, 'src/site.js'), 'utf8').then(
+    content => `const workspace = ${serialized};\nconst sourceSha = ${JSON.stringify(sha)};\n` + content
+  );
+
+  await Promise.all([
+    writeFile(resolve(output, 'index.html'), renderWorkspace(workspace)),
+    siteJsContentPromise.then(content => writeFile(resolve(output, 'site.js'), content)),
+    copyFile(resolve(root, 'src/style.css'), resolve(output, 'style.css')),
+    copyFile(resolve(root, 'brand.png'), resolve(output, 'brand.png')),
+    writeFile(resolve(output, '.nojekyll'), ''),
+    writeFile(resolve(output, 'release.json'), JSON.stringify({schema_version: 'freedom.guild-release/v1', guild_key: workspace.guild_key, repository: workspace.repository, source_sha: sha, bridge: 'freedom.guild-launchpad/v1'}) + '\n')
+  ]);
+
   return output;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
